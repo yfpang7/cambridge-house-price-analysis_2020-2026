@@ -1,0 +1,584 @@
+---
+title: "Housing Prices Analysis 2020-Present"
+subtitle: "Cambridge Market Prices"
+author: "Pang Yoke Fei"
+date: "today"
+format:
+  typst:
+    toc: true
+    number-sections: true
+    papersize: a4
+    margin:
+      x: 2cm
+      y: 2cm
+    fontsize: 10pt
+execute:
+  echo: false
+  warning: false
+---
+
+# Importing the data & preparing parquet file
+
+```{python}
+import polars as pl
+import tempfile
+from IPython.display import SVG, display
+from lets_plot import *
+
+# static output for PDF: render each plot to SVG instead of interactive HTML
+_plot_dir = tempfile.mkdtemp()
+_plot_n = 0
+
+def show(plot, width=700, height=380):
+    global _plot_n
+    _plot_n += 1
+    path = ggsave(plot + ggsize(width, height), f'plot_{_plot_n}.svg', path=_plot_dir)
+    display(SVG(filename=path))
+
+# importing the data
+# data = pl.read_csv(
+#     'data/*.csv',
+#     separator=',',
+#     has_header=False,
+#     schema={
+#         'transaction_id': pl.String,
+#         'price': pl.Float64,
+#         'date_transferred': pl.String,
+#         'postcode': pl.String,
+#         'property_type': pl.String,
+#         'new_build': pl.String,
+#         'tenure': pl.String,
+#         'primary_addressable_object_name': pl.String,
+#         'secondary_addressable_object_name': pl.String,
+#         'street': pl.String,
+#         'locality': pl.String,
+#         'town_city': pl.String,
+#         'district': pl.String,
+#         'county': pl.String,
+#         'ppd_category_type': pl.String,
+#         'record_status': pl.String
+#     }
+# ).with_columns(
+#     pl.col('date_transferred').str.to_date('%Y-%m-%d %H:%M')
+# )
+
+# # save this data
+# data.write_parquet('output/pp_2020-2026.parquet', mkdir=True)
+
+data = pl.read_parquet('output/pp_2020-2026.parquet')
+
+print(f'Data shape: {data.shape}')
+data.head()
+```
+
+## Schema of the dataset
+The data was obtained from the [UK Land Registry Price Paid Data](https://www.gov.uk/government/collections/price-paid-data), which contains information on property sales in England and Wales. The dataset includes various attributes related to property transactions, such as transaction ID, price, date of transfer, postcode, property type, and more.
+
+
+| Index | Column Name | Data Type | Description |
+| --- | --- | --- | --- |
+| **0** | `transaction_id` | String | Unique identifier for the transaction (UUID wrapped in curly braces). |
+| **1** | `price` | Float | Transaction price in GBP (e.g., `450000`). |
+| **2** | `date_transferred` | String / Date | Date of transfer formatted as `YYYY-MM-DD HH:MM`. |
+| **3** | `postcode` | String | Property postcode (e.g., `CB1 2AB`). |
+| **4** | `property_type` | Categorical | `D` = Detached, `S` = Semi-Detached, `T` = Terraced, `F` = Flats/Maisonettes, `O` = Other. |
+| **5** | `new_build` | Categorical | `Y` = Newly built property, `N` = Established residential building. |
+| **6** | `tenure` | Categorical | `F` = Freehold, `L` = Leasehold. |
+| **7** | `paon` | String | Primary Addressable Object Name (typically house number or name). |
+| **8** | `saon` | String | Secondary Addressable Object Name (flat/apartment number). |
+| **9** | `street` | String | Street name. |
+| **10** | `locality` | String | Locality / Sub-district area. |
+| **11** | `town_city` | String | Town or City (e.g., `CAMBRIDGE`). |
+| **12** | `district` | String | Local authority district (e.g., `CAMBRIDGE` or `SOUTH CAMBRIDGESHIRE`). |
+| **13** | `county` | String | County (e.g., `CAMBRIDGESHIRE`). |
+| **14** | `ppd_category_type` | Categorical | `A` = Standard Price Paid entry, `B` = Additional Price Paid entry (non-standard transactions). |
+| **15** | `record_status` | Categorical | `A` = Addition, `C` = Change, `D` = Delete. |
+
+# Filtering the data and EDA
+
+## Cities of Interest `Cambridge`, `Royston`, `Saffron Walden`, and `Stevenage`
+Added a new column `city_interest` to annotate the cities of interest. All other cities will be labeled as `OTHER`. This will help us focus on the specific cities we are interested in analyzing.
+
+```{python}
+city_of_interest = [
+    'CAMBRIDGE',
+    'ROYSTON',
+    'SAFFRON WALDEN',
+    'STEVENAGE'
+]
+
+## instead of filtering them out we will annotate them with a new column
+data_interest = (
+    data
+    .with_columns(
+        pl.when(pl.col('town_city').is_in(city_of_interest))
+        .then(pl.col('town_city'))
+        .otherwise(pl.lit('OTHER'))
+        .alias('city_interest')
+    )
+)
+
+```
+
+## Cleaning the Postcodes and Isolating the first part of the postcode
+
+Later in EDA we would like to compare the prices between different Cambridge postcodes. To do this, we will isolate the first part of the postcode (e.g., `CB1`, `CB2`, etc.) and create a new column for it.
+
+```{python}
+data_postcodes = (
+    data_interest
+    .with_columns(
+        pl.col('postcode')
+            .str.to_lowercase()
+            .str.split_exact(' ', 1)
+            .struct
+            .rename_fields(['postcode_first', 'postcode_last'])
+            .alias('postcode_split')
+    )
+    .unnest('postcode_split')
+    .drop('postcode')
+)
+
+## inspect the newly created columns
+(
+    data_postcodes
+    .select(['postcode_first', 'postcode_last', 'city_interest','district', 'county', 'locality'])
+    .filter(pl.col('city_interest') == 'CAMBRIDGE')
+    .head()
+)
+
+```
+
+## Removing Non-Standard Transactions
+To ensure the accuracy of our analysis, we will filter out non-standard transactions. We will keep only the standard transactions (where `ppd_category_type` is `A`) and those with a record status of `A` (Addition). This will help us focus on valid property sales data.
+
+A little context. Category A represents standard residential property sales sold for full market value. Category B covers non-standard transactions, such as repossessions, buy-to-let purchases identified by mortgage, transfers to non-private entities (like companies), and "Other" property types.
+
+**Category A: Standard Sales**
+
+- Definition: Single residential properties sold for full market value.
+- Timeline: Collected by HM Land Registry from January 1, 1995 onwards.
+- Use Case: Represents the vast majority of normal, open-market home sales.
+
+**Category B: Additional Price Paid (APPD)**
+
+- Definition: Non-standard or specialized property transactions.
+- Timeline: Introduced and tracked starting October 14, 2013.
+- Included Transactions:
+    - Repossessions and transfers under a power of sale
+    - Buy-to-let properties flagged via a mortgage
+    - Transfers to corporate or non-private owners
+    - Properties classed under the "Other" category
+
+### First, verify how many non-standard transactions there are in the dataset
+```{python}
+(
+    data_postcodes
+    .group_by(['ppd_category_type', 'record_status'])
+    .agg(pl.len())
+)
+```
+
+We will filter out non-standard transactions by keeping only those with `ppd_category_type` as `A` and `record_status` as `A`. This will ensure that we are analyzing valid property sales data.
+
+
+```{python}
+standard_sales = (
+    data_postcodes
+    .filter(
+        (pl.col('ppd_category_type') == 'A') &
+        (pl.col('record_status') == 'A')
+    )
+)
+```
+
+### Identifying the features that we want to evaluate
+
+We want the following features to be evaluated in our analysis:
+`price`, `date_transferred`, `postcode_first`, `property_type`, `new_build`, `tenure`, and `city_interest` .
+
+## Average price by quarter
+
+The average price of properties over the years, grouped by quarter, to show trends in property prices over time.
+
+
+```{python}
+quarterly_price = (
+    standard_sales
+    .sort('date_transferred')
+    .group_by_dynamic(
+        'date_transferred',
+        every='1q',
+        group_by='city_interest',
+        )
+    .agg(pl.col('price').mean())
+)
+
+show(
+    ggplot(quarterly_price, aes(x='date_transferred', y='price', color='city_interest'))
+    + geom_line()
+    + labs(
+        title='Average property price by quarter',
+        x='Quarter',
+        y='Average price',
+        color='City',
+    )
+)
+```
+
+### Quarterly average price faceted by feature
+
+The same quarterly trend, split by a property attribute. A helper keeps the three plots consistent.
+
+```{python}
+def quarterly_price_by(feature, title):
+    df = (
+        standard_sales
+        .sort('date_transferred')
+        .group_by_dynamic(
+            'date_transferred',
+            every='1q',
+            group_by=['city_interest', feature],
+        )
+        .agg(pl.col('price').mean())
+    )
+    return (
+        ggplot(df, aes(x='date_transferred', y='price', color='city_interest'))
+        + geom_line()
+        + facet_wrap(feature, ncol=2, scales='free_y')
+        + labs(title=title, x='Quarter', y='Average price', color='City')
+    )
+```
+
+#### By property type
+
+`D` = Detached, `S` = Semi-Detached, `T` = Terraced, `F` = Flats/Maisonettes, `O` = Other.
+
+```{python}
+show(quarterly_price_by('property_type', 'Average property price by quarter and property type'), height=520)
+```
+
+#### By new build
+
+`Y` = Newly built, `N` = Established building.
+
+```{python}
+show(quarterly_price_by('new_build', 'Average property price by quarter and new build'), height=520)
+```
+
+#### By tenure
+
+`F` = Freehold, `L` = Leasehold.
+
+```{python}
+show(quarterly_price_by('tenure', 'Average property price by quarter and tenure'), height=520)
+```
+
+
+
+# Flat depreciation vs other property types
+
+**Objective:** understand how flat prices have moved relative to other property types, to decide when and at what price to sell a flat bought around 2022 (4 years ago), and to find a 2-3 bed freehold semi-detached or detached house around the cities of interest.
+
+All figures below are **median** prices (robust to a few very expensive sales) on standard sales, in nominal GBP (not adjusted for inflation). 2026 is a partial year (data ends August 2026) and recent months are still being registered, so full-year comparisons stop at 2025.
+
+```{python}
+focus = (
+    standard_sales
+    .filter(pl.col('city_interest') != 'OTHER')
+    .with_columns(pl.col('date_transferred').dt.year().alias('year'))
+)
+
+type_labels = {'D': 'Detached', 'S': 'Semi-detached', 'T': 'Terraced', 'F': 'Flat'}
+```
+
+## Are flat prices falling?
+
+```{python}
+flats_annual = (
+    focus
+    .filter(pl.col('property_type') == 'F')
+    .group_by(['city_interest', 'year'])
+    .agg(pl.col('price').median().alias('median_price'), pl.len().alias('sales'))
+    .sort(['city_interest', 'year'])
+)
+
+show(
+    ggplot(flats_annual, aes(x='year', y='median_price', color='city_interest'))
+    + geom_line()
+    + geom_point()
+    + scale_x_continuous(format='d')
+    + labs(title='Median flat price by year', x='Year', y='Median price', color='City')
+)
+```
+
+```{python}
+flats_annual.pivot(on='city_interest', index='year', values='median_price').sort('year')
+```
+
+- **Cambridge** peaked in 2023 (about £335k) and fell about 11% to about £300k in 2025, about £290k so far in 2026. That is about 13% below the peak, though still about 7% above 2020.
+- **Royston, Saffron Walden and Stevenage** never had a sharp peak-and-fall. Royston and Stevenage are roughly flat, while Saffron Walden dropped from its 2022 high (about £252k) to about £230k.
+- In real terms (after inflation) all four are down since 2022.
+
+## Flats against the other property types
+
+Median price indexed to 2020 = 100, across the four cities of interest.
+
+```{python}
+indexed = (
+    focus
+    .filter(pl.col('property_type').is_in(list(type_labels)) & (pl.col('year') <= 2025))
+    .group_by(['property_type', 'year'])
+    .agg(pl.col('price').median().alias('median_price'))
+    .sort(['property_type', 'year'])
+    .with_columns(
+        (pl.col('median_price') / pl.col('median_price').first().over('property_type') * 100)
+        .alias('index')
+    )
+    .with_columns(pl.col('property_type').replace(type_labels).alias('type'))
+)
+
+show(
+    ggplot(indexed, aes(x='year', y='index', color='type'))
+    + geom_line()
+    + geom_point()
+    + scale_x_continuous(format='d')
+    + labs(title='Median price index by property type (2020 = 100)', x='Year', y='Index', color='Type')
+)
+```
+
+Percentage change in median price, by property type:
+
+```{python}
+def change_table(df):
+    return (
+        df
+        .filter(pl.col('year').is_in([2020, 2022, 2023, 2025]))
+        .group_by(['property_type', 'year'])
+        .agg(pl.col('price').median())
+        .pivot(on='year', index='property_type', values='price')
+        .filter(pl.col('property_type').is_in(list(type_labels)))
+        .with_columns(
+            ((pl.col('2025') / pl.col('2020') - 1) * 100).round(1).alias('chg_2020_25_pct'),
+            ((pl.col('2025') / pl.col('2022') - 1) * 100).round(1).alias('chg_2022_25_pct'),
+            ((pl.col('2025') / pl.col('2023') - 1) * 100).round(1).alias('chg_2023_25_pct'),
+        )
+        .select(['property_type', 'chg_2020_25_pct', 'chg_2022_25_pct', 'chg_2023_25_pct'])
+        .sort('property_type')
+    )
+
+print('Cambridge')
+display(change_table(focus.filter(pl.col('town_city') == 'CAMBRIDGE')))
+print('All four cities of interest')
+display(change_table(focus))
+```
+
+- Over 2020-2025 flats gained far less than houses (about +4% across the four cities against +13-21% for houses). Detached and terraced houses have kept rising, while semis have been roughly flat since 2022.
+- Since the 2023 peak, **Cambridge flats are the only segment with a clear fall** (about -11%). Semis and terraces dipped by a few percent and detached held.
+- Flats are about 98% leasehold. That leaves them more exposed to higher mortgage rates and to lease and service-charge costs, which houses mostly avoid.
+
+## Selling the flat: where are Cambridge flats losing value?
+
+Median Cambridge flat price by postcode district, comparing 2022 (about when the flat was bought) with 2025. Districts with few sales are noisy.
+
+```{python}
+cambridge_flats = focus.filter((pl.col('town_city') == 'CAMBRIDGE') & (pl.col('property_type') == 'F'))
+
+(
+    cambridge_flats
+    .filter(pl.col('year').is_in([2022, 2025]))
+    .group_by(['postcode_first', 'year'])
+    .agg(pl.col('price').median().alias('median_price'), pl.len().alias('sales'))
+    .pivot(on='year', index='postcode_first', values=['median_price', 'sales'])
+    .with_columns(
+        ((pl.col('median_price_2025') / pl.col('median_price_2022') - 1) * 100).round(1).alias('chg_pct')
+    )
+    .sort('postcode_first')
+)
+```
+
+- Central/inner districts with the most flat sales (CB1, CB5, CB4) are flat to down, CB1 notably (about -14%).
+- CB3 is the exception (about +18%), but on a small and uneven sample.
+- Use the row for your own postcode district as the main reference, not the Cambridge-wide figure.
+
+### New build vs resale flats
+
+```{python}
+(
+cambridge_flats
+    .group_by(['new_build', 'year'])
+    .agg(pl.col('price').median().alias('median_price'), pl.len().alias('sales'))
+    .pivot(on='new_build', index='year', values=['median_price', 'sales'])
+    .sort('year')
+)
+```
+
+New-build flats carry a large premium (about £390-415k against about £280-300k for resale in 2022-2023). **If your flat was a new build in 2022, you most likely paid that premium and are now selling as a resale flat.** The resale market is the right comparison (about £280k in 2022, about £290k in 2025, i.e. around +3%), not the headline Cambridge median. Resale flats have held up much better than the overall flat median suggests, which also means that median is partly dragged by the change in mix of new builds sold.
+
+### Recent trend and market depth
+
+```{python}
+quarterly_flats = (
+    cambridge_flats
+    .sort('date_transferred')
+    .group_by_dynamic('date_transferred', every='1q')
+    .agg(pl.col('price').median().alias('median_price'), pl.len().alias('sales'))
+)
+
+show(
+    ggplot(quarterly_flats, aes(x='date_transferred', y='median_price'))
+    + geom_line()
+    + geom_point(aes(size='sales'))
+    + labs(title='Cambridge flats: median price by quarter (point size = sales)', x='Quarter', y='Median price', size='Sales')
+)
+```
+
+Prices have stabilised around £285-295k since early 2024 with no further slide. Spikes such as 2025 Q3 coincide with a handful of new-build completions and should not be read as a recovery. Sales volumes are well below 2022 (about 920 a year, against about 540-575 in 2024-2025), so expect longer selling times and some price negotiation.
+
+# Finding a 2-3 bed freehold semi or detached house
+
+The dataset has **no bedroom count or floor area**, so "2-3 bed" cannot be filtered directly. Semi-detached houses (and the lower end of detached) are the closest proxy. Use the lower quartile of each city as a rough 2-3 bed range, then verify the bedroom count on listing sites.
+
+```{python}
+budget = 500_000   # adjust to your own budget
+
+buy = focus.filter(pl.col('property_type').is_in(['S', 'D']) & (pl.col('tenure') == 'F'))
+```
+
+## What a freehold semi / detached costs in each city (2024 onwards)
+
+```{python}
+(
+    buy
+    .filter(pl.col('year') >= 2024)
+    .group_by(['city_interest', 'property_type'])
+    .agg(
+        pl.col('price').quantile(0.25).alias('q25'),
+        pl.col('price').median().alias('median'),
+        pl.col('price').quantile(0.75).alias('q75'),
+        pl.len().alias('sales'),
+    )
+    .sort(['city_interest', 'property_type'])
+)
+```
+
+| City | Semi median | Detached median |
+| --- | --- | --- |
+| Royston | about £405k | about £616k |
+| Stevenage | about £406k | about £571k |
+| Cambridge | about £435k | about £605k |
+| Saffron Walden | about £463k | about £679k |
+
+Semis are priced similarly in Royston and Stevenage (about £405k), roughly 7% cheaper than Cambridge and 13% cheaper than Saffron Walden. The step up to detached is about £150-210k everywhere.
+
+## Are prices still rising?
+
+```{python}
+buy_annual = (
+    buy
+    .filter(pl.col('year') <= 2025)
+    .group_by(['city_interest', 'property_type', 'year'])
+    .agg(pl.col('price').median().alias('median_price'))
+    .with_columns(pl.col('property_type').replace(type_labels).alias('type'))
+)
+
+show(
+    ggplot(buy_annual, aes(x='year', y='median_price', color='city_interest'))
+    + geom_line()
+    + geom_point()
+    + facet_wrap('type', ncol=2, scales='free_y')
+    + scale_x_continuous(format='d')
+    + labs(title='Median freehold price by year', x='Year', y='Median price', color='City')
+)
+```
+
+Freehold semis and detached houses rose strongly through 2022-2023 and have been **flat or drifting lower since 2023** (e.g. Saffron Walden semis about £500k in 2023 against about £475k in 2025; Cambridge semis about £457k against about £435k). There is no sign of a surge to rush for, and buyers currently have some negotiating room.
+
+## Where is the best value? (postcode districts, resale only, 2025 onwards)
+
+```{python}
+districts = (
+    buy
+    .filter((pl.col('year') >= 2025) & (pl.col('new_build') == 'N'))
+    .group_by(['city_interest', 'postcode_first', 'property_type'])
+    .agg(
+        pl.col('price').median().alias('median_price'),
+        (pl.col('price') <= budget).mean().round(2).alias('share_within_budget'),
+        pl.len().alias('sales'),
+    )
+    .filter(pl.col('sales') >= 15)
+    .sort('median_price')
+)
+districts
+```
+
+Cheapest freehold semi-detached areas with enough sales to trust (resale median, 2025 onwards):
+
+- **CB23, CB24, CB25 (Cambridge outskirts): about £375-380k**, the cheapest, and also the largest pool of sales (about 85-90% of sales under £500k).
+- **SG2 (Stevenage): about £385k**
+- **SG8 (Royston): about £405k**
+- CB21 and CB22 (south of Cambridge): about £415k
+- CB10 (Saffron Walden): about £425k, CB11 about £470k
+
+For detached, the cheapest districts are CB25 (about £530k), CB24 (about £545k) and SG2 Stevenage (about £557k). Under £500k a detached house is uncommon (under half of sales even in the cheapest districts).
+
+`share_within_budget` shows what fraction of recent sales in each district fell at or under `budget`, a better guide than the median to how much choice you will have.
+
+## New-build premium on houses
+
+```{python}
+(
+    buy
+    .filter(pl.col('year') >= 2025)
+    .group_by('new_build')
+    .agg(pl.col('price').median().alias('median_price'), pl.len().alias('sales'))
+)
+```
+
+New-build semis and detached sell for about 14% more (about £580k against about £510k). As with flats, new builds carry a premium that tends to fade on resale, so resale houses are the better value for a first purchase.
+
+## What the "upgrade" costs
+
+```{python}
+upgrade = (
+    focus
+    .filter((pl.col('year') >= 2025) & (pl.col('new_build') == 'N'))
+    .filter(
+        ((pl.col('property_type') == 'F') | ((pl.col('property_type') == 'S') & (pl.col('tenure') == 'F')))
+    )
+    .group_by(['city_interest', 'property_type'])
+    .agg(pl.col('price').median().alias('median_price'))
+    .pivot(on='property_type', index='city_interest', values='median_price')
+    .with_columns((pl.col('S') - pl.col('F')).alias('flat_to_semi_gap'))
+    .sort('city_interest')
+)
+upgrade
+```
+
+# Summary and recommendations
+
+**Flats vs other types**
+
+1. Flats have appreciated much less than houses since 2020 and, in Cambridge, have depreciated since 2023 (about -11%, about -13% from peak). Houses kept their value or rose.
+2. The Cambridge-wide median overstates the fall for resale flats (about +3% since 2022), because fewer pricey new builds are now being sold. Compare your flat against the resale figures for its own postcode district.
+3. Prices have stabilised since early 2024, so there is no evidence that waiting will bring a rebound. Volumes are low, so price realistically and be ready to negotiate.
+
+**Selling the flat**
+
+- Benchmark: resale flats in your postcode district (table above). Roughly flat since 2022 is the base case; a new-build flat bought in 2022 may sell for less than was paid.
+- Cheaper commuter-belt flats (Stevenage about £200-207k) are the only ones still creeping upward.
+- Monthly seasonality in the data is weak and noisy, so I would not time the sale around it.
+
+**Buying a freehold 2-3 bed semi/detached**
+
+- Semis are about £405-465k and have been flat for about 2 years, so there is no urgency.
+- Best value (resale semis): **CB23/CB24/CB25 around Cambridge (about £375-380k), then SG2 Stevenage (about £385k) and SG8 Royston (about £405k)**. Saffron Walden is the most expensive of the four.
+- Buy resale, not new build (about 14% premium).
+- A resale semi costs roughly £145k more than a resale flat in Cambridge and £205-230k more in Royston, Stevenage and Saffron Walden (see the `upgrade` table), so the flat's sale proceeds will need topping up. Use the `upgrade` table above with your own budget.
+
+**Limitations**
+
+- Medians describe typical sales, not your specific home. Size, condition, floor, lease length, service charge and street all matter and are not in this dataset.
+- No bedroom count, so 2-3 bed is approximated by property type and price band.
+- Prices are nominal; inflation makes the real picture weaker than shown.
+- 2026 data is partial and subject to registration lag, so recent quarters (and especially 2026 new builds) may be revised.

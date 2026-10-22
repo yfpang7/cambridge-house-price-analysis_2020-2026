@@ -1,0 +1,94 @@
+{
+  "version": "1",
+  "metadata": {
+    "marimo_version": "0.23.5",
+    "script_metadata_hash": null
+  },
+  "cells": [
+    {
+      "id": "Hbol",
+      "code_hash": "667008fd1e6cb0ad96a30b5d24e12f1b",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "MJUe",
+      "code_hash": "200a207d7a8c6e2d5b779c134b045d39",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/html": "<marimo-ui-element object-id='MJUe-0' random-id='b5f0953a-797f-b0bc-132a-cb60a2d8f0ad'><marimo-table data-initial-value='[]' data-label='null' data-data='&quot;[{&#92;&quot;transaction_id&#92;&quot;:&#92;&quot;{9FF0D96A-435D-11ED-E053-6C04A8C06383}&#92;&quot;,&#92;&quot;price&#92;&quot;:36000.0,&#92;&quot;date_transferred&#92;&quot;:&#92;&quot;2020-01-31&#92;&quot;,&#92;&quot;postcode&#92;&quot;:&#92;&quot;CF43 4NW&#92;&quot;,&#92;&quot;property_type&#92;&quot;:&#92;&quot;T&#92;&quot;,&#92;&quot;new_build&#92;&quot;:&#92;&quot;N&#92;&quot;,&#92;&quot;tenure&#92;&quot;:&#92;&quot;F&#92;&quot;,&#92;&quot;primary_addressable_object_name&#92;&quot;:&#92;&quot;10&#92;&quot;,&#92;&quot;secondary_addressable_object_name&#92;&quot;:&#92;&quot;&#92;&quot;,&#92;&quot;street&#92;&quot;:&#92;&quot;ALBERT STREET&#92;&quot;,&#92;&quot;locality&#92;&quot;:&#92;&quot;BLAENLLECHAU&#92;&quot;,&#92;&quot;town_city&#92;&quot;:&#92;&quot;FERNDALE&#92;&quot;,&#92;&quot;district&#92;&quot;:&#92;&quot;RHONDDA CYNON TAFF&#92;&quot;,&#92;&quot;county&#92;&quot;:&#92;&quot;RHONDDA CYNON TAFF&#92;&quot;,&#92;&quot;ppd_category_type&#92;&quot;:&#92;&quot;A&#92;&quot;,&#92;&quot;record_status&#92;&quot;:&#92;&quot;A&#92;&quot;},{&#92;&quot;transaction_id&#92;&quot;:&#92;&quot;{9FF0D96A-435E-11ED-E053-6C04A8C06383}&#92;&quot;,&#92;&quot;price&#92;&quot;:333500.0,&#92;&quot;date_transferred&#92;&quot;:&#92;&quot;2020-01-31&#92;&quot;,&#92;&quot;postcode&#92;&quot;:&#92;&quot;CF61 1RR&#92;&quot;,&#92;&quot;property_type&#92;&quot;:&#92;&quot;T&#92;&quot;,&#92;&quot;new_build&#92;&quot;:&#92;&quot;N&#92;&quot;,&#92;&quot;tenure&#92;&quot;:&#92;&quot;F&#92;&quot;,&#92;&quot;primary_addressable_object_name&#92;&quot;:&#92;&quot;22&#92;&quot;,&#92;&quot;secondary_addressable_object_name&#92;&quot;:&#92;&quot;&#92;&quot;,&#92;&quot;street&#92;&quot;:&#92;&quot;ST DAVIDS AVENUE&#92;&quot;,&#92;&quot;locality&#92;&quot;:&#92;&quot;&#92;&quot;,&#92;&quot;town_city&#92;&quot;:&#92;&quot;LLANTWIT MAJOR&#92;&quot;,&#92;&quot;district&#92;&quot;:&#92;&quot;THE VALE OF GLAMORGAN&#92;&quot;,&#92;&quot;county&#92;&quot;:&#92;&quot;THE VALE OF GLAMORGAN&#92;&quot;,&#92;&quot;ppd_category_type&#92;&quot;:&#92;&quot;A&#92;&quot;,&#92;&quot;record_status&#92;&quot;:&#92;&quot;A&#92;&quot;},{&#92;&quot;transaction_id&#92;&quot;:&#92;&quot;{9FF0D96A-435F-11ED-E053-6C04A8C06383}&#92;&quot;,&#92;&quot;price&#92;&quot;:85000.0,&#92;&quot;date_transferred&#92;&quot;:&#92;&quot;2020-01-31&#92;&quot;,&#92;&quot;postcode&#92;&quot;:&#92;&quot;NP11 7AL&#92;&quot;,&#92;&quot;property_type&#92;&quot;:&#92;&quot;F&#92;&quot;,&#92;&quot;new_build&#92;&quot;:&#92;&quot;N&#92;&quot;,&#92;&quot;tenure&#92;&quot;:&#92;&quot;L&#92;&quot;,&#92;&quot;primary_addressable_object_name&#92;&quot;:&#92;&quot;1&#92;&quot;,&#92;&quot;secondary_addressable_object_name&#92;&quot;:&#92;&quot;&#92;&quot;,&#92;&quot;street&#92;&quot;:&#92;&quot;WAUNFAWR GARDENS&#92;&quot;,&#92;&quot;locality&#92;&quot;:&#92;&quot;CROSS KEYS&#92;&quot;,&#92;&quot;town_city&#92;&quot;:&#92;&quot;NEWPORT&#92;&quot;,&#92;&quot;district&#92;&quot;:&#92;&quot;CAERPHILLY&#92;&quot;,&#92;&quot;county&#92;&quot;:&#92;&quot;CAERPHILLY&#92;&quot;,&#92;&quot;ppd_category_type&#92;&quot;:&#92;&quot;A&#92;&quot;,&#92;&quot;record_status&#92;&quot;:&#92;&quot;A&#92;&quot;},{&#92;&quot;transaction_id&#92;&quot;:&#92;&quot;{9FF0D96A-4360-11ED-E053-6C04A8C06383}&#92;&quot;,&#92;&quot;price&#92;&quot;:137000.0,&#92;&quot;date_transferred&#92;&quot;:&#92;&quot;2020-02-05&#92;&quot;,&#92;&quot;postcode&#92;&quot;:&#92;&quot;CF32 7AA&#92;&quot;,&#92;&quot;property_type&#92;&quot;:&#92;&quot;T&#92;&quot;,&#92;&quot;new_build&#92;&quot;:&#92;&quot;N&#92;&quot;,&#92;&quot;tenure&#92;&quot;:&#92;&quot;F&#92;&quot;,&#92;&quot;primary_addressable_object_name&#92;&quot;:&#92;&quot;11&#92;&quot;,&#92;&quot;secondary_addressable_object_name&#92;&quot;:&#92;&quot;&#92;&quot;,&#92;&quot;street&#92;&quot;:&#92;&quot;CORBETT STREET&#92;&quot;,&#92;&quot;locality&#92;&quot;:&#92;&quot;OGMORE VALE&#92;&quot;,&#92;&quot;town_city&#92;&quot;:&#92;&quot;BRIDGEND&#92;&quot;,&#92;&quot;district&#92;&quot;:&#92;&quot;BRIDGEND&#92;&quot;,&#92;&quot;county&#92;&quot;:&#92;&quot;BRIDGEND&#92;&quot;,&#92;&quot;ppd_category_type&#92;&quot;:&#92;&quot;A&#92;&quot;,&#92;&quot;record_status&#92;&quot;:&#92;&quot;A&#92;&quot;},{&#92;&quot;transaction_id&#92;&quot;:&#92;&quot;{9FF0D96A-4361-11ED-E053-6C04A8C06383}&#92;&quot;,&#92;&quot;price&#92;&quot;:168500.0,&#92;&quot;date_transferred&#92;&quot;:&#92;&quot;2020-01-24&#92;&quot;,&#92;&quot;postcode&#92;&quot;:&#92;&quot;LL68 9EH&#92;&quot;,&#92;&quot;property_type&#92;&quot;:&#92;&quot;D&#92;&quot;,&#92;&quot;new_build&#92;&quot;:&#92;&quot;N&#92;&quot;,&#92;&quot;tenure&#92;&quot;:&#92;&quot;F&#92;&quot;,&#92;&quot;primary_addressable_object_name&#92;&quot;:&#92;&quot;26&#92;&quot;,&#92;&quot;secondary_addressable_object_name&#92;&quot;:&#92;&quot;&#92;&quot;,&#92;&quot;street&#92;&quot;:&#92;&quot;CRAIG DDU ESTATE&#92;&quot;,&#92;&quot;locality&#92;&quot;:&#92;&quot;&#92;&quot;,&#92;&quot;town_city&#92;&quot;:&#92;&quot;AMLWCH&#92;&quot;,&#92;&quot;district&#92;&quot;:&#92;&quot;ISLE OF ANGLESEY&#92;&quot;,&#92;&quot;county&#92;&quot;:&#92;&quot;ISLE OF ANGLESEY&#92;&quot;,&#92;&quot;ppd_category_type&#92;&quot;:&#92;&quot;A&#92;&quot;,&#92;&quot;record_status&#92;&quot;:&#92;&quot;A&#92;&quot;}]&quot;' data-total-rows='5' data-total-columns='16' data-max-columns='50' data-banner-text='&quot;&quot;' data-pagination='false' data-page-size='10' data-field-types='[[&quot;transaction_id&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;price&quot;,[&quot;number&quot;,&quot;f64&quot;]],[&quot;date_transferred&quot;,[&quot;date&quot;,&quot;date&quot;]],[&quot;postcode&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;property_type&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;new_build&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;tenure&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;primary_addressable_object_name&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;secondary_addressable_object_name&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;street&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;locality&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;town_city&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;district&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;county&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;ppd_category_type&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;record_status&quot;,[&quot;string&quot;,&quot;str&quot;]]]' data-show-filters='true' data-show-download='true' data-show-column-summaries='false' data-show-data-types='true' data-show-page-size-selector='false' data-show-column-explorer='true' data-show-chart-builder='true' data-row-headers='[]' data-has-stable-row-id='false' data-lazy='false' data-preload='false'></marimo-table></marimo-ui-element>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "vblA",
+      "code_hash": "09ff8d57a3e728aa6f374c3e2fb135fc",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "wTeR",
+      "code_hash": "d36171bdb10d0b32fbd7d144e7b330fb",
+      "outputs": [
+        {
+          "type": "error",
+          "ename": "multiple-defs",
+          "evalue": "The variable 'city_of_interest' was defined by another cell",
+          "traceback": []
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "bkHC",
+      "code_hash": "384384ac23fea31d5db9ac4917a2ead1",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/html": "<marimo-ui-element object-id='bkHC-0' random-id='0a2d19e4-8ac2-5b58-de2a-17b5ef09b22b'><marimo-table data-initial-value='[]' data-label='null' data-data='&quot;[{&#92;&quot;transaction_id&#92;&quot;:&#92;&quot;{AC07BBCF-DEC3-0445-E053-6C04A8C01E31}&#92;&quot;,&#92;&quot;price&#92;&quot;:340000.0,&#92;&quot;date_transferred&#92;&quot;:&#92;&quot;2020-06-26&#92;&quot;,&#92;&quot;postcode&#92;&quot;:&#92;&quot;SG8 6AP&#92;&quot;,&#92;&quot;property_type&#92;&quot;:&#92;&quot;S&#92;&quot;,&#92;&quot;new_build&#92;&quot;:&#92;&quot;N&#92;&quot;,&#92;&quot;tenure&#92;&quot;:&#92;&quot;F&#92;&quot;,&#92;&quot;primary_addressable_object_name&#92;&quot;:&#92;&quot;125&#92;&quot;,&#92;&quot;secondary_addressable_object_name&#92;&quot;:&#92;&quot;&#92;&quot;,&#92;&quot;street&#92;&quot;:&#92;&quot;HIGH STREET&#92;&quot;,&#92;&quot;locality&#92;&quot;:&#92;&quot;MELBOURN&#92;&quot;,&#92;&quot;town_city&#92;&quot;:&#92;&quot;ROYSTON&#92;&quot;,&#92;&quot;district&#92;&quot;:&#92;&quot;SOUTH CAMBRIDGESHIRE&#92;&quot;,&#92;&quot;county&#92;&quot;:&#92;&quot;CAMBRIDGESHIRE&#92;&quot;,&#92;&quot;ppd_category_type&#92;&quot;:&#92;&quot;A&#92;&quot;,&#92;&quot;record_status&#92;&quot;:&#92;&quot;A&#92;&quot;},{&#92;&quot;transaction_id&#92;&quot;:&#92;&quot;{AC07BBCF-DEC4-0445-E053-6C04A8C01E31}&#92;&quot;,&#92;&quot;price&#92;&quot;:455000.0,&#92;&quot;date_transferred&#92;&quot;:&#92;&quot;2020-06-25&#92;&quot;,&#92;&quot;postcode&#92;&quot;:&#92;&quot;CB25 0AN&#92;&quot;,&#92;&quot;property_type&#92;&quot;:&#92;&quot;D&#92;&quot;,&#92;&quot;new_build&#92;&quot;:&#92;&quot;N&#92;&quot;,&#92;&quot;tenure&#92;&quot;:&#92;&quot;F&#92;&quot;,&#92;&quot;primary_addressable_object_name&#92;&quot;:&#92;&quot;7&#92;&quot;,&#92;&quot;secondary_addressable_object_name&#92;&quot;:&#92;&quot;&#92;&quot;,&#92;&quot;street&#92;&quot;:&#92;&quot;SWAFFHAM ROAD&#92;&quot;,&#92;&quot;locality&#92;&quot;:&#92;&quot;BURWELL&#92;&quot;,&#92;&quot;town_city&#92;&quot;:&#92;&quot;CAMBRIDGE&#92;&quot;,&#92;&quot;district&#92;&quot;:&#92;&quot;EAST CAMBRIDGESHIRE&#92;&quot;,&#92;&quot;county&#92;&quot;:&#92;&quot;CAMBRIDGESHIRE&#92;&quot;,&#92;&quot;ppd_category_type&#92;&quot;:&#92;&quot;A&#92;&quot;,&#92;&quot;record_status&#92;&quot;:&#92;&quot;A&#92;&quot;},{&#92;&quot;transaction_id&#92;&quot;:&#92;&quot;{AC07BBCF-DEC6-0445-E053-6C04A8C01E31}&#92;&quot;,&#92;&quot;price&#92;&quot;:325500.0,&#92;&quot;date_transferred&#92;&quot;:&#92;&quot;2020-06-19&#92;&quot;,&#92;&quot;postcode&#92;&quot;:&#92;&quot;CB22 3HT&#92;&quot;,&#92;&quot;property_type&#92;&quot;:&#92;&quot;T&#92;&quot;,&#92;&quot;new_build&#92;&quot;:&#92;&quot;N&#92;&quot;,&#92;&quot;tenure&#92;&quot;:&#92;&quot;F&#92;&quot;,&#92;&quot;primary_addressable_object_name&#92;&quot;:&#92;&quot;43&#92;&quot;,&#92;&quot;secondary_addressable_object_name&#92;&quot;:&#92;&quot;&#92;&quot;,&#92;&quot;street&#92;&quot;:&#92;&quot;GRANTA ROAD&#92;&quot;,&#92;&quot;locality&#92;&quot;:&#92;&quot;SAWSTON&#92;&quot;,&#92;&quot;town_city&#92;&quot;:&#92;&quot;CAMBRIDGE&#92;&quot;,&#92;&quot;district&#92;&quot;:&#92;&quot;SOUTH CAMBRIDGESHIRE&#92;&quot;,&#92;&quot;county&#92;&quot;:&#92;&quot;CAMBRIDGESHIRE&#92;&quot;,&#92;&quot;ppd_category_type&#92;&quot;:&#92;&quot;A&#92;&quot;,&#92;&quot;record_status&#92;&quot;:&#92;&quot;A&#92;&quot;},{&#92;&quot;transaction_id&#92;&quot;:&#92;&quot;{AC07BBCF-DEC8-0445-E053-6C04A8C01E31}&#92;&quot;,&#92;&quot;price&#92;&quot;:230000.0,&#92;&quot;date_transferred&#92;&quot;:&#92;&quot;2020-05-28&#92;&quot;,&#92;&quot;postcode&#92;&quot;:&#92;&quot;CB23 3AE&#92;&quot;,&#92;&quot;property_type&#92;&quot;:&#92;&quot;T&#92;&quot;,&#92;&quot;new_build&#92;&quot;:&#92;&quot;N&#92;&quot;,&#92;&quot;tenure&#92;&quot;:&#92;&quot;F&#92;&quot;,&#92;&quot;primary_addressable_object_name&#92;&quot;:&#92;&quot;38&#92;&quot;,&#92;&quot;secondary_addressable_object_name&#92;&quot;:&#92;&quot;&#92;&quot;,&#92;&quot;street&#92;&quot;:&#92;&quot;WINDMILL PLACE&#92;&quot;,&#92;&quot;locality&#92;&quot;:&#92;&quot;PAPWORTH EVERARD&#92;&quot;,&#92;&quot;town_city&#92;&quot;:&#92;&quot;CAMBRIDGE&#92;&quot;,&#92;&quot;district&#92;&quot;:&#92;&quot;SOUTH CAMBRIDGESHIRE&#92;&quot;,&#92;&quot;county&#92;&quot;:&#92;&quot;CAMBRIDGESHIRE&#92;&quot;,&#92;&quot;ppd_category_type&#92;&quot;:&#92;&quot;A&#92;&quot;,&#92;&quot;record_status&#92;&quot;:&#92;&quot;A&#92;&quot;},{&#92;&quot;transaction_id&#92;&quot;:&#92;&quot;{AC07BBCF-DEC9-0445-E053-6C04A8C01E31}&#92;&quot;,&#92;&quot;price&#92;&quot;:723000.0,&#92;&quot;date_transferred&#92;&quot;:&#92;&quot;2020-06-30&#92;&quot;,&#92;&quot;postcode&#92;&quot;:&#92;&quot;CB1 3QJ&#92;&quot;,&#92;&quot;property_type&#92;&quot;:&#92;&quot;S&#92;&quot;,&#92;&quot;new_build&#92;&quot;:&#92;&quot;N&#92;&quot;,&#92;&quot;tenure&#92;&quot;:&#92;&quot;F&#92;&quot;,&#92;&quot;primary_addressable_object_name&#92;&quot;:&#92;&quot;41&#92;&quot;,&#92;&quot;secondary_addressable_object_name&#92;&quot;:&#92;&quot;&#92;&quot;,&#92;&quot;street&#92;&quot;:&#92;&quot;GREVILLE ROAD&#92;&quot;,&#92;&quot;locality&#92;&quot;:&#92;&quot;&#92;&quot;,&#92;&quot;town_city&#92;&quot;:&#92;&quot;CAMBRIDGE&#92;&quot;,&#92;&quot;district&#92;&quot;:&#92;&quot;CAMBRIDGE&#92;&quot;,&#92;&quot;county&#92;&quot;:&#92;&quot;CAMBRIDGESHIRE&#92;&quot;,&#92;&quot;ppd_category_type&#92;&quot;:&#92;&quot;A&#92;&quot;,&#92;&quot;record_status&#92;&quot;:&#92;&quot;A&#92;&quot;}]&quot;' data-total-rows='5' data-total-columns='16' data-max-columns='50' data-banner-text='&quot;&quot;' data-pagination='false' data-page-size='10' data-field-types='[[&quot;transaction_id&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;price&quot;,[&quot;number&quot;,&quot;f64&quot;]],[&quot;date_transferred&quot;,[&quot;date&quot;,&quot;date&quot;]],[&quot;postcode&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;property_type&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;new_build&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;tenure&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;primary_addressable_object_name&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;secondary_addressable_object_name&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;street&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;locality&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;town_city&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;district&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;county&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;ppd_category_type&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;record_status&quot;,[&quot;string&quot;,&quot;str&quot;]]]' data-show-filters='true' data-show-download='true' data-show-column-summaries='false' data-show-data-types='true' data-show-page-size-selector='false' data-show-column-explorer='true' data-show-chart-builder='true' data-row-headers='[]' data-has-stable-row-id='false' data-lazy='false' data-preload='false'></marimo-table></marimo-ui-element>"
+          }
+        }
+      ],
+      "console": [
+        {
+          "type": "stream",
+          "name": "stdout",
+          "text": "data shape: (44610, 16)\n",
+          "mimetype": "text/plain"
+        }
+      ]
+    },
+    {
+      "id": "lEQa",
+      "code_hash": "f702d059f55759e3f587c38754105938",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    }
+  ]
+}

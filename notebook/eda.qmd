@@ -1,0 +1,724 @@
+---
+title: "Housing Prices Analysis 2020-Present"
+subtitle: "Cambridge Market Prices"
+author: "Pang Yoke Fei"
+date: "today"
+format:
+  html:
+    toc: true
+    number-sections: true
+    code-fold: true
+---
+
+# Why this report exists
+
+I bought a flat in Cambridge around 2022, and a few years on I want to know three things. Has it lost value? When, and at what price, should I sell it? And if I do sell, what would it take to move into a 2-3 bed freehold semi-detached or detached house in or around Cambridge?
+
+Rather than rely on gut feeling or estate agent chatter, I went to the public record. This report walks through the data, shows what I found, and ends with a plain-language summary of what I plan to do about it. The code is folded by default, so click on any "Code" label if you want to see how a number was produced.
+
+# Importing the data & preparing parquet file
+
+The raw CSVs are large, so I converted them to a single parquet file once and read that from then on. The original import code is kept below, commented out, for reference.
+
+```{python}
+import polars as pl
+from lets_plot import *
+from httpx import post
+LetsPlot.setup_html(isolated_frame=True)
+
+# importing the data
+# data = pl.read_csv(
+#     'data/*.csv',
+#     separator=',',
+#     has_header=False,
+#     schema={
+#         'transaction_id': pl.String,
+#         'price': pl.Float64,
+#         'date_transferred': pl.String,
+#         'postcode': pl.String,
+#         'property_type': pl.String,
+#         'new_build': pl.String,
+#         'tenure': pl.String,
+#         'primary_addressable_object_name': pl.String,
+#         'secondary_addressable_object_name': pl.String,
+#         'street': pl.String,
+#         'locality': pl.String,
+#         'town_city': pl.String,
+#         'district': pl.String,
+#         'county': pl.String,
+#         'ppd_category_type': pl.String,
+#         'record_status': pl.String
+#     }
+# ).with_columns(
+#     pl.col('date_transferred').str.to_date('%Y-%m-%d %H:%M')
+# )
+
+# # save this data
+# data.write_parquet('output/pp_2020-2026.parquet', mkdir=True)
+
+data = pl.read_parquet('output/pp_2020-2026.parquet')
+
+print(f'Data shape: {data.shape}')
+data.head()
+```
+
+## Schema of the dataset
+The data comes from the [UK Land Registry Price Paid Data](https://www.gov.uk/government/collections/price-paid-data), which records every property sale in England and Wales. Each row is one sale, with details such as the price, the date, the postcode and the type of property. Here is what each column means:
+
+
+| Index | Column Name | Data Type | Description |
+| --- | --- | --- | --- |
+| **0** | `transaction_id` | String | Unique identifier for the transaction (UUID wrapped in curly braces). |
+| **1** | `price` | Float | Transaction price in GBP (e.g., `450000`). |
+| **2** | `date_transferred` | String / Date | Date of transfer formatted as `YYYY-MM-DD HH:MM`. |
+| **3** | `postcode` | String | Property postcode (e.g., `CB1 2AB`). |
+| **4** | `property_type` | Categorical | `D` = Detached, `S` = Semi-Detached, `T` = Terraced, `F` = Flats/Maisonettes, `O` = Other. |
+| **5** | `new_build` | Categorical | `Y` = Newly built property, `N` = Established residential building. |
+| **6** | `tenure` | Categorical | `F` = Freehold, `L` = Leasehold. |
+| **7** | `paon` | String | Primary Addressable Object Name (typically house number or name). |
+| **8** | `saon` | String | Secondary Addressable Object Name (flat/apartment number). |
+| **9** | `street` | String | Street name. |
+| **10** | `locality` | String | Locality / Sub-district area. |
+| **11** | `town_city` | String | Town or City (e.g., `CAMBRIDGE`). |
+| **12** | `district` | String | Local authority district (e.g., `CAMBRIDGE` or `SOUTH CAMBRIDGESHIRE`). |
+| **13** | `county` | String | County (e.g., `CAMBRIDGESHIRE`). |
+| **14** | `ppd_category_type` | Categorical | `A` = Standard Price Paid entry, `B` = Additional Price Paid entry (non-standard transactions). |
+| **15** | `record_status` | Categorical | `A` = Addition, `C` = Change, `D` = Delete. |
+
+# Filtering the data and EDA
+
+## Cities of Interest: `Cambridge`, `Royston`, `Saffron Walden`, and `Stevenage`
+I'm looking at four places: Cambridge itself, plus Royston, Saffron Walden and Stevenage, which are the commuter towns I'd realistically consider. Instead of throwing everything else away, I added a `city_interest` column that tags these four and labels the rest `OTHER`. That way I keep the wider market as context but can zoom in whenever I need to.
+
+```{python}
+city_of_interest = [
+    'CAMBRIDGE',
+    'ROYSTON',
+    'SAFFRON WALDEN',
+    'STEVENAGE'
+]
+
+## instead of filtering them out we will annotate them with a new column
+data_interest = (
+    data
+    .with_columns(
+        pl.when(pl.col('town_city').is_in(city_of_interest))
+        .then(pl.col('town_city'))
+        .otherwise(pl.lit('OTHER'))
+        .alias('city_interest')
+    )
+)
+
+```
+
+## Cleaning the Postcodes and Isolating the first part of the postcode
+
+Cambridge is not one uniform market, and a flat in CB1 behaves very differently from a house in CB22. To compare neighbourhoods later, I split each postcode and keep the first half (`CB1`, `CB2` and so on) in its own column.
+
+```{python}
+data_postcodes = (
+    data_interest
+    .with_columns(
+        pl.col('postcode')
+            .str.to_lowercase()
+            .str.split_exact(' ', 1)
+            .struct
+            .rename_fields(['postcode_first', 'postcode_last'])
+            .alias('postcode_split')
+    )
+    .unnest('postcode_split')
+    .drop('postcode')
+)
+
+## inspect the newly created columns
+(
+    data_postcodes
+    .select(['postcode_first', 'postcode_last', 'city_interest','district', 'county', 'locality'])
+    .filter(pl.col('city_interest') == 'CAMBRIDGE')
+    .head()
+)
+
+```
+
+## Removing Non-Standard Transactions
+Not every sale in the register tells us something useful about the normal market. A repossession or a sale to a company, for example, is not priced like an ordinary home sale. I only want ordinary sales, so I keep the standard ones (`ppd_category_type` of `A`) that are new records (`record_status` of `A`).
+
+A little context on the two categories:
+
+**Category A: Standard Sales**
+
+- Definition: Single residential properties sold for full market value.
+- Timeline: Collected by HM Land Registry from January 1, 1995 onwards.
+- Use Case: Represents the vast majority of normal, open-market home sales.
+
+**Category B: Additional Price Paid (APPD)**
+
+- Definition: Non-standard or specialized property transactions.
+- Timeline: Introduced and tracked starting October 14, 2013.
+- Included Transactions:
+    - Repossessions and transfers under a power of sale
+    - Buy-to-let properties flagged via a mortgage
+    - Transfers to corporate or non-private owners
+    - Properties classed under the "Other" category
+
+### First, how many non-standard transactions are there?
+Before filtering anything, I'd like to see how much data this will cost me.
+
+```{python}
+(
+    data_postcodes
+    .group_by(['ppd_category_type', 'record_status'])
+    .agg(pl.len())
+)
+```
+
+Now the filter itself, keeping only the standard, newly added records.
+
+
+```{python}
+standard_sales = (
+    data_postcodes
+    .filter(
+        (pl.col('ppd_category_type') == 'A') &
+        (pl.col('record_status') == 'A')
+    )
+)
+```
+
+### The features I care about
+
+From here on I focus on seven columns: `price`, `date_transferred`, `postcode_first`, `property_type`, `new_build`, `tenure`, and `city_interest`.
+
+## Average price by quarter
+
+To start, the big picture. This chart shows the average sale price in each quarter since 2020, one line per city.
+
+
+```{python}
+quarterly_price = (
+    standard_sales
+    .sort('date_transferred')
+    .group_by_dynamic(
+        'date_transferred',
+        every='1q',
+        group_by='city_interest',
+        )
+    .agg(pl.col('price').mean())
+)
+
+(
+    ggplot(quarterly_price, aes(x='date_transferred', y='price', color='city_interest'))
+    + geom_line()
+    + labs(
+        title='Average property price by quarter',
+        x='Quarter',
+        y='Average price',
+        color='City',
+    )
+)
+```
+
+### Quarterly average price faceted by feature
+
+An overall average hides a lot, because it blends cheap flats with expensive detached houses. So I split the same trend by property attribute. A small helper function keeps the three plots consistent.
+
+```{python}
+def quarterly_price_by(feature, title):
+    df = (
+        standard_sales
+        .sort('date_transferred')
+        .group_by_dynamic(
+            'date_transferred',
+            every='1q',
+            group_by=['city_interest', feature],
+        )
+        .agg(pl.col('price').mean())
+    )
+    return (
+        ggplot(df, aes(x='date_transferred', y='price', color='city_interest'))
+        + geom_line()
+        + facet_wrap(feature, ncol=2, scales='free_y')
+        + labs(title=title, x='Quarter', y='Average price', color='City')
+    )
+```
+
+#### By property type
+
+`D` = Detached, `S` = Semi-Detached, `T` = Terraced, `F` = Flats/Maisonettes, `O` = Other.
+
+```{python}
+quarterly_price_by('property_type', 'Average property price by quarter and property type')
+```
+
+#### By new build
+
+`Y` = Newly built, `N` = Established building.
+
+```{python}
+quarterly_price_by('new_build', 'Average property price by quarter and new build')
+```
+
+#### By tenure
+
+`F` = Freehold, `L` = Leasehold.
+
+```{python}
+quarterly_price_by('tenure', 'Average property price by quarter and tenure')
+```
+
+### Quarterly average price by postcode of interest
+
+Next I zoom in on specific neighbourhoods. These are the villages and towns around Cambridge that I would consider living in, along with their postcode districts.
+
+
+| Location | Postcode District | Post Town |
+| :--- | :--- | :--- |
+| **Trumpington** | CB2 | Cambridge |
+| **Great Shelford** | CB22 | Cambridge |
+| **Little Shelford** | CB22 | Cambridge |
+| **Sawston** | CB22 | Cambridge |
+| **Fulbourn** | CB21 | Cambridge |
+| **Girton** | CB3 | Cambridge |
+| **Great Chesterford** | CB10 | Saffron Walden |
+| **Saffron Walden** | CB10, CB11 | Saffron Walden |
+| **Royston** | SG8 | Royston |
+| **Newmarket** | CB8 | Newmarket |
+| **Bury St Edmunds** | IP32, IP33 | Bury St Edmunds |
+| **Bishop's Stortford** | CM22, CM23 | Bishop's Stortford |
+| **Hitchin** | SG4, SG5 | Hitchin |
+| **Letchworth Garden City** | SG6 | Letchworth Garden City |
+
+
+```{python}
+postcode_interest = {
+    'CB2': 'Trumpington',
+    'CB22': 'Great Shelford',
+    'CB21': 'Fulbourn',
+    'CB3': 'Girton',
+    'CB10': 'Great Chesterford',
+    'CB11': 'Saffron Walden',
+    'SG8': 'Royston',
+    'CB8': 'Newmarket',
+    'IP32': 'Bury St Edmunds',
+    'IP33': 'Bury St Edmunds',
+    'CM22': "Bishop's Stortford",
+    'CM23': "Bishop's Stortford",
+    'SG4': 'Hitchin',
+    'SG5': 'Hitchin',
+    'SG6': 'Letchworth Garden City'
+}
+
+## instead of filtering them out we will annotate them with a new column as the postcode_interest
+standard_sales = (
+   standard_sales
+   .with_columns(
+        pl.col('postcode_first')
+        .str.to_uppercase() # remember the standard sales dataset I have cleaned the postcodes to lowercase, so we need to convert them back to uppercase to match the postcode_interest dictionary
+        .replace_strict(postcode_interest, default='other')
+        .alias('postcode_interest')
+   )
+)
+
+## get the average price by quarter for the postcode of interest
+postcode_interest_average_sales = (
+    standard_sales
+    .sort('date_transferred')
+    .group_by_dynamic(
+        'date_transferred',
+        every='1q',
+        group_by=['postcode_interest', 'property_type'],
+    )
+    .agg(pl.col('price').mean().alias('Average price'), pl.len().alias('sales'))
+)
+
+## plot the average price by quarter for the postcode of interest
+(
+    ggplot(postcode_interest_average_sales.filter(pl.col('postcode_interest') != 'other'), aes(x='date_transferred', y='Average price', color='postcode_interest'))
+    + geom_line()
+    + facet_wrap('property_type', ncol=2, scales='free_y')
+    + labs(title='Average property price by quarter and postcode of interest', x='Quarter', y='Average price', color='Postcode')
+)
+```
+
+Something jumped out at me here. Average prices for flats in CB2 (Trumpington) and CB22 (Great Shelford) have been falling since 2023, while other property types kept climbing.
+
+Girton tells a different story. It is a well-established village with a mix of property types, and flat prices in CB3 have held steady since 2023 while the other types rose. Flats there seem more resilient than in the newer areas.
+
+This matches what I see with my own eyes. Over the past few years Trumpington has seen a huge number of new houses and developments go up, and my hunch is that oversupply is pulling prices down. That is only a hunch, since the chart doesn't prove it, but it is enough to make me wary of buying in CB2 while the building continues.
+
+To test the hunch, I compared how many sales of each property type there were in Trumpington and in Girton.
+
+```{python}
+#| label: inspect_sales_by_property_type
+#| fig-cap: 'Comparing the number of sales by property type in Trumpington and Girton'
+
+## inspecting why girton and trumpington have such different trends, we can look at the number of sales by property type in each area
+(
+    standard_sales
+    .filter(pl.col('postcode_interest').is_in(['Trumpington', 'Girton']))
+    .group_by(['postcode_interest', 'property_type'])
+    .agg(pl.len().alias('number_of_sales'))
+    .sort(['postcode_interest', 'property_type'])
+    .pivot(
+        index='property_type',
+        on='postcode_interest',
+        values='number_of_sales'
+    )
+)
+```
+
+Trumpington and Girton are so different that they squash the other lines on the chart. I'll take them out and look at the remaining areas on their own.
+
+```{python}
+exclude_trumpington_girton = (
+    postcode_interest_average_sales
+    .filter(pl.col('postcode_interest').is_in(['Trumpington', 'Girton', 'other']) == False)
+)
+
+## plot the average price by quarter for the postcode of interest excluding Trumpington and Girton
+(
+    ggplot(exclude_trumpington_girton, aes(x='date_transferred', y='Average price', color='postcode_interest'))
+    + geom_line()
+    + facet_wrap('property_type', ncol=2, scales='free_y')
+    + labs(title='Average property price by quarter and postcode of interest (excluding Trumpington and Girton)', x='Quarter', y='Average price', color='Postcode')
+    + ggtb()
+)
+
+```
+
+This is more or less what I expected. Hitchin and Saffron Walden have been steady, and they sit above larger, more heavily developed towns like Royston. Newmarket and Bury St Edmunds, to the east of Cambridge, are consistently cheaper than everywhere else on my list.
+
+Royston stands out as a promising option. It is relatively affordable and has good transport links to both Cambridge and London.
+
+# Flat depreciation vs other property types
+
+**The question:** how have flat prices moved compared with other property types? The answer should help me decide when, and at what price, to sell the flat I bought around 2022 (four years ago), and what a 2-3 bed freehold semi-detached or detached house would cost in the cities I'm considering.
+
+A few ground rules for the numbers below:
+
+- I use **median** prices, which are not thrown off by a handful of very expensive sales.
+- Figures are in nominal GBP, so they are not adjusted for inflation.
+- 2026 is only a partial year (the data ends in August 2026), and recent sales are still being registered. Full-year comparisons therefore stop at 2025.
+
+```{python}
+focus = (
+    standard_sales
+    .filter(pl.col('city_interest') != 'OTHER')
+    .with_columns(pl.col('date_transferred').dt.year().alias('year'))
+)
+
+type_labels = {'D': 'Detached', 'S': 'Semi-detached', 'T': 'Terraced', 'F': 'Flat'}
+```
+
+## Are flat prices falling?
+
+The short answer is yes in Cambridge, but not everywhere.
+
+```{python}
+flats_annual = (
+    focus
+    .filter(pl.col('property_type') == 'F')
+    .group_by(['city_interest', 'year'])
+    .agg(pl.col('price').median().alias('median_price'), pl.len().alias('sales'))
+    .sort(['city_interest', 'year'])
+)
+
+(
+    ggplot(flats_annual, aes(x='year', y='median_price', color='city_interest'))
+    + geom_line()
+    + geom_point()
+    + scale_x_continuous(format='d')
+    + labs(title='Median flat price by year', x='Year', y='Median price', color='City')
+)
+```
+
+And the numbers behind the chart:
+
+```{python}
+flats_annual.pivot(on='city_interest', index='year', values='median_price').sort('year')
+```
+
+- **Cambridge** peaked in 2023 at about £335k, then fell roughly 11% to about £300k in 2025, and sits near £290k so far in 2026. That is about 13% below the peak, though still about 7% above where it started in 2020.
+- **Royston, Saffron Walden and Stevenage** never had a sharp peak and fall. Royston and Stevenage are roughly flat, while Saffron Walden slipped from its 2022 high (about £252k) to about £230k.
+- Once inflation is taken into account, all four cities are down since 2022.
+
+## Flats against the other property types
+
+Is it only flats that are struggling, or is the whole market soft? To compare like with like, I indexed each property type's median price to 2020 = 100, using all four cities together.
+
+```{python}
+indexed = (
+    focus
+    .filter(pl.col('property_type').is_in(list(type_labels)) & (pl.col('year') <= 2025))
+    .group_by(['property_type', 'year'])
+    .agg(pl.col('price').median().alias('median_price'))
+    .sort(['property_type', 'year'])
+    .with_columns(
+        (pl.col('median_price') / pl.col('median_price').first().over('property_type') * 100)
+        .alias('index')
+    )
+    .with_columns(pl.col('property_type').replace(type_labels).alias('type'))
+)
+
+(
+    ggplot(indexed, aes(x='year', y='index', color='type'))
+    + geom_line()
+    + geom_point()
+    + scale_x_continuous(format='d')
+    + labs(title='Median price index by property type (2020 = 100)', x='Year', y='Index', color='Type')
+)
+```
+
+Here are the percentage changes in median price, by property type:
+
+```{python}
+def change_table(df):
+    return (
+        df
+        .filter(pl.col('year').is_in([2020, 2022, 2023, 2025]))
+        .group_by(['property_type', 'year'])
+        .agg(pl.col('price').median())
+        .pivot(on='year', index='property_type', values='price')
+        .filter(pl.col('property_type').is_in(list(type_labels)))
+        .with_columns(
+            ((pl.col('2025') / pl.col('2020') - 1) * 100).round(1).alias('chg_2020_25_pct'),
+            ((pl.col('2025') / pl.col('2022') - 1) * 100).round(1).alias('chg_2022_25_pct'),
+            ((pl.col('2025') / pl.col('2023') - 1) * 100).round(1).alias('chg_2023_25_pct'),
+        )
+        .select(['property_type', 'chg_2020_25_pct', 'chg_2022_25_pct', 'chg_2023_25_pct'])
+        .sort('property_type')
+    )
+
+print('Cambridge')
+display(change_table(focus.filter(pl.col('town_city') == 'CAMBRIDGE')))
+print('All four cities of interest')
+display(change_table(focus))
+```
+
+What stands out:
+
+- Between 2020 and 2025, flats gained far less than houses: about +4% across the four cities, against +13-21% for houses. Detached and terraced houses kept rising, while semis have been roughly flat since 2022.
+- Since the 2023 peak, **Cambridge flats are the only segment with a clear fall** (about -11%). Semis and terraces dipped by a few percent and detached houses held.
+- Flats are about 98% leasehold. That leaves them more exposed to higher mortgage rates and to lease and service-charge costs, which houses mostly avoid.
+
+## Selling the flat: where are Cambridge flats losing value?
+
+"Cambridge" is a big place, so the next question is where within it flats are losing value. The table compares the median flat price by postcode district in 2022 (roughly when I bought) and 2025. Districts with few sales are noisy, so treat those with caution.
+
+```{python}
+cambridge_flats = focus.filter((pl.col('town_city') == 'CAMBRIDGE') & (pl.col('property_type') == 'F'))
+
+(
+    cambridge_flats
+    .filter(pl.col('year').is_in([2022, 2025]))
+    .group_by(['postcode_first', 'year'])
+    .agg(pl.col('price').median().alias('median_price'), pl.len().alias('sales'))
+    .pivot(on='year', index='postcode_first', values=['median_price', 'sales'])
+    .with_columns(
+        ((pl.col('median_price_2025') / pl.col('median_price_2022') - 1) * 100).round(1).alias('chg_pct')
+    )
+    .sort('postcode_first')
+)
+```
+
+- The central and inner districts with the most flat sales (CB1, CB5, CB4) are flat to down, and CB1 stands out at about -14%.
+- CB3 is the exception at about +18%, but that rests on a small and uneven sample, so I wouldn't read much into it.
+- The practical lesson is to use the row for your own postcode district as the main reference, not the Cambridge-wide figure.
+
+### New build vs resale flats
+
+There is a catch with the headline figure, which is that new-build flats cost a lot more than resale ones. If the mix of new and resale flats sold changes from year to year, the overall median can move even when no individual flat has changed in value. Splitting them apart shows whether that is happening.
+
+```{python}
+(
+cambridge_flats
+    .group_by(['new_build', 'year'])
+    .agg(pl.col('price').median().alias('median_price'), pl.len().alias('sales'))
+    .pivot(on='new_build', index='year', values=['median_price', 'sales'])
+    .sort('year')
+)
+```
+
+New-build flats carry a big premium: about £390-415k against about £280-300k for resale in 2022-2023. **If your flat was a new build in 2022, you most likely paid that premium and would now be selling as a resale flat.** For a fair comparison, the resale market is the right benchmark (about £280k in 2022 and about £290k in 2025, around +3%), and not the headline Cambridge median. Resale flats have held up much better than the overall flat median suggests, which also means that median is partly dragged down by the changing mix of new builds sold.
+
+### Recent trend and market depth
+
+Finally, how do things look right now, and how busy is the market? Point size on the chart shows the number of sales in each quarter.
+
+```{python}
+quarterly_flats = (
+    cambridge_flats
+    .sort('date_transferred')
+    .group_by_dynamic('date_transferred', every='1q')
+    .agg(pl.col('price').median().alias('median_price'), pl.len().alias('sales'))
+)
+
+(
+    ggplot(quarterly_flats, aes(x='date_transferred', y='median_price'))
+    + geom_line()
+    + geom_point(aes(size='sales'))
+    + labs(title='Cambridge flats: median price by quarter (point size = sales)', x='Quarter', y='Median price', size='Sales')
+)
+```
+
+Prices have settled at around £285-295k since early 2024, with no further slide. The occasional spike, such as 2025 Q3, lines up with a handful of new-build completions, so I wouldn't read it as a recovery. Sales volumes are also well below 2022 (about 920 a year, against about 540-575 in 2024-2025). In practice that means longer selling times and some haggling over price.
+
+# Finding a 2-3 bed freehold semi or detached house
+
+Now for the other half of the plan. The dataset has **no bedroom count or floor area**, so I can't filter for "2-3 bed" directly. As a stand-in, I use semi-detached houses (and the lower end of detached), and take the lower quartile of each city as a rough 2-3 bed range. Whatever looks promising still needs its bedroom count checked on a listing site.
+
+```{python}
+budget = 500_000   # adjust to your own budget
+
+buy = focus.filter(pl.col('property_type').is_in(['S', 'D']) & (pl.col('tenure') == 'F'))
+```
+
+## What a freehold semi / detached costs in each city (2024 onwards)
+
+```{python}
+(
+    buy
+    .filter(pl.col('year') >= 2024)
+    .group_by(['city_interest', 'property_type'])
+    .agg(
+        pl.col('price').quantile(0.25).alias('q25'),
+        pl.col('price').median().alias('median'),
+        pl.col('price').quantile(0.75).alias('q75'),
+        pl.len().alias('sales'),
+    )
+    .sort(['city_interest', 'property_type'])
+)
+```
+
+In summary:
+
+| City | Semi median | Detached median |
+| --- | --- | --- |
+| Royston | about £405k | about £616k |
+| Stevenage | about £406k | about £571k |
+| Cambridge | about £435k | about £605k |
+| Saffron Walden | about £463k | about £679k |
+
+Semis cost about the same in Royston and Stevenage (about £405k), which is roughly 7% cheaper than Cambridge and 13% cheaper than Saffron Walden. The step up from semi to detached is about £150-210k wherever you look.
+
+## Are prices still rising?
+
+If prices are about to take off, there is a case for buying sooner rather than later. So I checked.
+
+```{python}
+buy_annual = (
+    buy
+    .filter(pl.col('year') <= 2025)
+    .group_by(['city_interest', 'property_type', 'year'])
+    .agg(pl.col('price').median().alias('median_price'))
+    .with_columns(pl.col('property_type').replace(type_labels).alias('type'))
+)
+
+(
+    ggplot(buy_annual, aes(x='year', y='median_price', color='city_interest'))
+    + geom_line()
+    + geom_point()
+    + facet_wrap('type', ncol=2, scales='free_y')
+    + scale_x_continuous(format='d')
+    + labs(title='Median freehold price by year', x='Year', y='Median price', color='City')
+)
+```
+
+They are not. Freehold semis and detached houses rose strongly through 2022-2023 and have been **flat or drifting lower since 2023**. Saffron Walden semis, for example, went from about £500k in 2023 to about £475k in 2025, and Cambridge semis from about £457k to about £435k. There is no surge to rush for, and buyers have some room to negotiate right now.
+
+## Where is the best value? (postcode districts, resale only, 2025 onwards)
+
+City-level medians only go so far, so I went down to postcode districts. The `share_within_budget` column shows what fraction of recent sales in each district fell at or under `budget`. I find this more useful than the median, because it tells you how much choice you would actually have.
+
+```{python}
+districts = (
+    buy
+    .filter((pl.col('year') >= 2025) & (pl.col('new_build') == 'N'))
+    .group_by(['city_interest', 'postcode_first', 'property_type'])
+    .agg(
+        pl.col('price').median().alias('median_price'),
+        (pl.col('price') <= budget).mean().round(2).alias('share_within_budget'),
+        pl.len().alias('sales'),
+    )
+    .filter(pl.col('sales') >= 15)
+    .sort('median_price')
+)
+districts
+```
+
+The cheapest freehold semi-detached areas with enough sales to trust (resale median, 2025 onwards) are:
+
+- **CB23, CB24, CB25 (Cambridge outskirts): about £375-380k.** These are the cheapest, and they also have the largest pool of sales, with about 85-90% under £500k.
+- **SG2 (Stevenage): about £385k**
+- **SG8 (Royston): about £405k**
+- CB21 and CB22 (south of Cambridge): about £415k
+- CB10 (Saffron Walden): about £425k, and CB11 about £470k
+
+For detached houses, the cheapest districts are CB25 (about £530k), CB24 (about £545k) and SG2 Stevenage (about £557k). A detached house under £500k is uncommon, since even in the cheapest districts fewer than half of sales come in under that.
+
+## New-build premium on houses
+
+Does the new-build premium we saw with flats also apply to houses?
+
+```{python}
+(
+    buy
+    .filter(pl.col('year') >= 2025)
+    .group_by('new_build')
+    .agg(pl.col('price').median().alias('median_price'), pl.len().alias('sales'))
+)
+```
+
+It does. New-build semis and detached houses sell for about 14% more (about £580k against about £510k). As with flats, that premium tends to fade on resale, so a resale house is the better value for a first purchase.
+
+## What the "upgrade" costs
+
+The last number I wanted was the size of the step from a flat to a semi in each city, because that is the gap my sale proceeds would need to cover.
+
+```{python}
+upgrade = (
+    focus
+    .filter((pl.col('year') >= 2025) & (pl.col('new_build') == 'N'))
+    .filter(
+        ((pl.col('property_type') == 'F') | ((pl.col('property_type') == 'S') & (pl.col('tenure') == 'F')))
+    )
+    .group_by(['city_interest', 'property_type'])
+    .agg(pl.col('price').median().alias('median_price'))
+    .pivot(on='property_type', index='city_interest', values='median_price')
+    .with_columns((pl.col('S') - pl.col('F')).alias('flat_to_semi_gap'))
+    .sort('city_interest')
+)
+upgrade
+```
+
+# Summary and recommendations
+
+Here is what I take away from all this.
+
+**Flats vs other types**
+
+1. Flats have appreciated much less than houses since 2020. In Cambridge they have also lost value since 2023 (about -11%, or about -13% from the peak), while houses held their value or rose.
+2. The Cambridge-wide median overstates the fall for resale flats (about +3% since 2022), because fewer expensive new builds are being sold now. The fair comparison is against resale figures for your own postcode district.
+3. Prices have been stable since early 2024, so there is no evidence that waiting will bring a rebound. Volumes are low, so price realistically and be ready to negotiate.
+
+**Selling the flat**
+
+- The benchmark is resale flats in your postcode district (see the table above). Roughly flat since 2022 is the base case, though a new-build flat bought in 2022 may sell for less than was paid.
+- Cheaper commuter-belt flats (Stevenage at about £200-207k) are the only ones still creeping upward.
+- Monthly seasonality in the data is weak and noisy, so I wouldn't time the sale around it.
+
+**Buying a freehold 2-3 bed semi/detached**
+
+- Semis cost about £405-465k and have been flat for about two years, so there is no urgency.
+- The best value in resale semis is in **CB23/CB24/CB25 around Cambridge (about £375-380k), then SG2 Stevenage (about £385k) and SG8 Royston (about £405k)**. Saffron Walden is the most expensive of the four.
+- Buy resale, not new build, to avoid the roughly 14% premium.
+- A resale semi costs roughly £145k more than a resale flat in Cambridge, and £205-230k more in Royston, Stevenage and Saffron Walden (see the `upgrade` table). The flat's sale proceeds will need topping up, so run the `upgrade` table against your own budget.
+
+**Limitations**
+
+None of this is a valuation, and a few caveats are worth keeping in mind:
+
+- Medians describe typical sales, not any specific home. Size, condition, floor, lease length, service charge and street all matter, and none of them are in this dataset.
+- There is no bedroom count, so 2-3 bed is approximated by property type and price band.
+- Prices are nominal, so inflation makes the real picture weaker than shown.
+- 2026 data is partial and subject to registration lag, so recent quarters (especially 2026 new builds) may be revised.
