@@ -1,2 +1,11 @@
 # to exclude
 data/
+
+# Raw and derived data (regenerate via pipeline)
+data/*.csv
+output/*.parquet
+
+# Quarto render artefacts (optional)
+html/
+.quarto/
+_freeze/
