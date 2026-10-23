@@ -1,0 +1,91 @@
+---
+title: "Bank of England Interest Rate Data"
+subtitle: "Mortgage Rate Analysis"
+author: "Pang Yoke Fei"
+date: "today"
+format:
+  html:
+    toc: true
+    number-sections: true
+    code-fold: true
+---
+
+# Importing the data
+The bank of england exposes URL endpoint that serves custom CSV extract without requirement of authentication. The data can be accessed via the following URL:
+
+| Series Description | Series Code |
+|-------------------|-------------|
+| 2-Year Fixed Mortgage Rate (75% LTV) | IUMBV34 |
+| 5-Year Fixed Mortgage Rate (75% LTV) | IUMBV42 |
+| Standard Variable Rate (SVR) | IUMTLMV |
+| Official Base Rate | IUDBEDR |
+
+
+```{python}
+## using claude AI to generate the code to fetch the data from the bank of england website
+import io
+import httpx
+import polars as pl
+from lets_plot import *
+
+LetsPlot.setup_html(isolated_frame=True)
+
+# SERIES = {
+#     "IUMBV34": "fixed_2y",
+#     "IUMBV42": "fixed_5y",
+#     "IUMTLMV": "standard_variable",
+#     "IUDBEDR": "official_base_rate",
+# }
+# 
+# def fetch_boe(series: dict[str, str], date_from: str = "01/Jan/1995") -> pl.DataFrame:
+#     params = {
+#         "csv.x": "yes",
+#         "SeriesCodes": ",".join(series),
+#         "UsingCodes": "Y",
+#         "CSVF": "TN",
+#         "VPD": "Y",
+#         "Datefrom": date_from,
+#         "Dateto": "now",
+#     }
+#     r = httpx.get(
+#         "https://www.bankofengland.co.uk/boeapps/database/_iadb-fromshowcolumns.asp",
+#         params=params,
+#         headers={"User-Agent": "Mozilla/5.0"},
+#         timeout=30,
+#         follow_redirects=True,
+#     )
+#     r.raise_for_status()
+#     return (
+#         pl.read_csv(io.BytesIO(r.content), null_values=["", "n/a"])
+#         .rename({"DATE": "date", **series})
+#         .with_columns(pl.col("date").str.to_date("%d %b %Y"))
+#     )
+# 
+# mortgage_rates_df = fetch_boe(SERIES)
+# print(mortgage_rates_df.head())
+# print(mortgage_rates_df.shape)
+# 
+# # export data to parquet
+# mortgage_rates_df.write_parquet("output/mortgage_rates.parquet")
+
+# import the saved parquet file
+mortgage_rates_df = pl.read_parquet("output/mortgage_rates.parquet")
+
+# plot
+```
+
+## Visualize the dataset
+```{python}
+(
+    ggplot(mortgage_rates_df.unpivot(index="date", variable_name="product", value_name="rate").drop_nulls(),
+           aes("date", "rate", color="product"))
+    + geom_line()
+    + labs(y="Rate (%)", title="UK mortgage rates")
+    + theme_minimal2()
+)
+```
+
+```{python}
+# check the latest interest rate without any null values
+print(mortgage_rates_df.drop_nulls(subset=['fixed_2y', 'fixed_5y', 'standard_variable', 'official_base_rate']))
+```

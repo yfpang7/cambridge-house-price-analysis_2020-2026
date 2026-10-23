@@ -5,5 +5,8 @@
   },
   "notebook/eda-pdf.qmd": {
     "eda-pdf.typ": "5ccdcc17"
+  },
+  "notebook/eda-interest-rate.qmd": {
+    "eda-interest-rate.html": "d04aadb7"
   }
 }
